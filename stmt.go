@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
+	"time"
 )
 
 type stmt struct {
@@ -28,6 +30,23 @@ func (s *stmt) NumInput() int {
 	return strings.Count(s.query, "?")
 }
 
+func (s *stmt) CheckNamedValue(v *driver.NamedValue) error {
+	switch v.Value.(type) {
+	case int, int8, int16, int32, int64:
+	case uint, uint8, uint16, uint32, uint64:
+	case float32, float64:
+	case bool:
+	case []byte:
+	case string:
+	case time.Time:
+	case Date:
+	default:
+		rv := reflect.ValueOf(v.Value)
+		return fmt.Errorf("unsupported type %T, a %s", v.Value, rv.Kind())
+	}
+	return nil
+}
+
 func buildPrepareRequest(addr, query string, args []driver.Value) (*http.Request, error) {
 	arr := make([]string, len(args))
 	for i, arg := range args {
@@ -36,6 +55,10 @@ func buildPrepareRequest(addr, query string, args []driver.Value) (*http.Request
 			arr[i] = fmt.Sprintf("'%s'", strings.ReplaceAll(arg.(string), "'", "''"))
 		case []byte:
 			return nil, errors.New("not supported []byte arguments")
+		case Date:
+			arr[i] = arg.(Date).Quote()
+		case time.Time:
+			arr[i] = "TIMESTAMP '" + arg.(time.Time).Format("2006-01-02 15:04:05.999") + "'"
 		default:
 			arr[i] = fmt.Sprintf("%v", arg)
 		}

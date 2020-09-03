@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"net/http"
 )
 
@@ -80,6 +81,16 @@ func (rs *rows) scan(dest []driver.Value) error {
 			err = data[i].toBoolean(&dest[i])
 		case typeInteger:
 			err = data[i].toInteger(&dest[i])
+		case typeDouble:
+			err = data[i].toDouble(&dest[i])
+		case typeString:
+			err = data[i].toString(&dest[i])
+		case typeDate:
+			err = data[i].toDate(&dest[i])
+		case typeTime:
+			err = data[i].toTime(&dest[i])
+		default:
+			err = errors.New("not supported type")
 		}
 		if err != nil {
 			return err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 )
 
 var dsn string
@@ -36,6 +37,10 @@ func (db *dbt) fail(method, query string, err error) {
 		query = "[query too large to print]"
 	}
 	db.Fatalf("error on %s %s: %s", method, query, err.Error())
+}
+
+func (db *dbt) exec(query string, args ...interface{}) (sql.Result, error) {
+	return db.db.Exec(query, args...)
 }
 
 func (db *dbt) mustExec(query string, args ...interface{}) sql.Result {
@@ -72,12 +77,14 @@ func runTest(t *testing.T, dsn string, fn func(*dbt)) {
 	fn(dbt)
 }
 
-func TestCRD(t *testing.T) {
+func TestCRUD(t *testing.T) {
 	runTest(t, dsn, func(db *dbt) {
+		defer db.exec("DROP TABLE IF EXISTS default.test")
 		db.mustExec(`CREATE TABLE
 			IF NOT EXISTS default.test(
 				value int,
-				dt varchar
+				ts timestamp,
+				dt date
 			) WITH (
 				partitioned_by=ARRAY['dt']
 			)`)
@@ -88,7 +95,8 @@ func TestCRD(t *testing.T) {
 		}
 		rows.Close()
 
-		res := db.mustExec("INSERT INTO default.test (dt, value) VALUES(?, ?)", "2020-09-03", 1)
+		dt := DateFromTime(time.Now())
+		res := db.mustExec("INSERT INTO default.test (dt, ts, value) VALUES(?, ?, ?)", dt, time.Now(), 1)
 		count, err := res.RowsAffected()
 		if err != nil {
 			db.Fatalf("res.RowsAffected() returned error: %s", err.Error())
@@ -105,10 +113,11 @@ func TestCRD(t *testing.T) {
 			db.Fatalf("expected InsertId 0, got %d", id)
 		}
 
+		var t time.Time
 		var out int
-		rows = db.mustQuery("SELECT value FROM default.test")
+		rows = db.mustQuery("SELECT dt, ts, value FROM default.test")
 		if rows.Next() {
-			rows.Scan(&out)
+			rows.Scan(&dt, &t, &out)
 			if out != 1 {
 				db.Errorf("%d != 1", out)
 			}
@@ -117,7 +126,7 @@ func TestCRD(t *testing.T) {
 				db.Error("unexpected data")
 			}
 		} else {
-			db.Error("no data")
+			db.Error("no data: " + rows.Err().Error())
 		}
 		rows.Close()
 
@@ -131,7 +140,7 @@ func TestCRD(t *testing.T) {
 		// 	db.Fatalf("expected 1 affected row, got %d", count)
 		// }
 
-		res = db.mustExec("DELETE FROM default.test WHERE dt=?", "2020-09-03")
+		res = db.mustExec("DELETE FROM default.test WHERE dt=?", dt)
 		count, err = res.RowsAffected()
 		if err != nil {
 			db.Fatalf("res.RowsAffected() returned error: %s", err.Error())

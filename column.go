@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
+	"time"
 )
 
+// https://prestodb.io/docs/current/language/types.html
 type columnType int
 
 func (t *columnType) UnmarshalJSON(data []byte) error {
@@ -23,9 +26,9 @@ func (t *columnType) UnmarshalJSON(data []byte) error {
 		*t = typeDouble
 	case "varchar", "char", "varbinary", "json":
 		*t = typeString
-	case "date", "time", "time with time zone",
-		"timestamp", "timestamp with timezone",
-		"interval year to month", "interval day to second":
+	case "date":
+		*t = typeDate
+	case "timestamp":
 		*t = typeTime
 	case "array":
 		*t = typeArray
@@ -42,6 +45,7 @@ const (
 	typeInteger
 	typeDouble
 	typeString
+	typeDate
 	typeTime
 	typeArray
 	typeMap
@@ -84,4 +88,34 @@ func (d dataType) toInteger(v *driver.Value) error {
 	}
 	*v = n
 	return nil
+}
+
+func (d dataType) toDouble(v *driver.Value) error {
+	n, err := strconv.ParseFloat(string(d), 64)
+	if err != nil {
+		return err
+	}
+	*v = n
+	return nil
+}
+
+func (d dataType) toString(v *driver.Value) error {
+	*v = []byte(d)
+	return nil
+}
+
+func (d dataType) toDate(v *driver.Value) error {
+	str := strings.TrimPrefix(string(d), "\"")
+	str = strings.TrimSuffix(str, "\"")
+	var err error
+	*v, err = time.Parse("2006-01-02", str)
+	return err
+}
+
+func (d dataType) toTime(v *driver.Value) error {
+	str := strings.TrimPrefix(string(d), "\"")
+	str = strings.TrimSuffix(str, "\"")
+	var err error
+	*v, err = time.Parse("2006-01-02 15:04:05.999", str)
+	return err
 }
