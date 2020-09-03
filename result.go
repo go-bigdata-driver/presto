@@ -1,11 +1,14 @@
 package presto
 
-type result struct{}
+type result struct {
+	lastID   int64
+	affected int64
+}
 
 func (r *result) LastInsertId() (int64, error) {
-	return 0, nil
+	return r.lastID, nil
 }
 
 func (r *result) RowsAffected() (int64, error) {
-	return 0, nil
+	return r.affected, nil
 }

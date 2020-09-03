@@ -12,11 +12,15 @@ type conn struct {
 }
 
 func (c *conn) Prepare(query string) (driver.Stmt, error) {
-	fmt.Println("prepare: ", query)
-	return &stmt{}, nil
+	return &stmt{
+		query: query,
+		conn:  c,
+	}, nil
 }
 
 func (c *conn) Close() error {
+	c.cfg = nil
+	c.cli = nil
 	return nil
 }
 
